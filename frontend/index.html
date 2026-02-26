@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HDFS Namenode Anomaly Detector</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="header-title">
+        <span class="logo">⬡</span>
+        <h1>HDFS Namenode Anomaly Detector</h1>
+      </div>
+      <div id="model-badge" class="model-badge loading">Loading model status…</div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Workflow steps indicator -->
+    <div class="workflow-steps">
+      <div class="step active" id="step-indicator-1">
+        <span class="step-num">1</span>
+        <span class="step-label">Select Baseline &amp; Train</span>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step" id="step-indicator-2">
+        <span class="step-num">2</span>
+        <span class="step-label">Select Analysis Window</span>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step" id="step-indicator-3">
+        <span class="step-num">3</span>
+        <span class="step-label">View Report</span>
+      </div>
+    </div>
+
+    <!-- ── STEP 1: Baseline Training ── -->
+    <section class="card baseline-card" id="section-baseline">
+      <div class="card-header-row">
+        <div>
+          <h2>Step 1 — Baseline (Known Good Performance)</h2>
+          <p class="card-subtitle">Select a time window when the Namenode was performing well. The LSTM model will learn what "normal" looks like from this period.</p>
+        </div>
+        <div id="baseline-trained-badge" class="trained-badge hidden">Model trained</div>
+      </div>
+
+      <div class="range-controls">
+        <div class="field">
+          <label for="baseline-from">From</label>
+          <input type="datetime-local" id="baseline-from" />
+        </div>
+        <div class="field">
+          <label for="baseline-to">To</label>
+          <input type="datetime-local" id="baseline-to" />
+        </div>
+        <div class="field presets-field">
+          <label>Quick Select</label>
+          <div class="preset-buttons">
+            <button class="btn-preset baseline-preset" data-minutes="60">Last 1 h</button>
+            <button class="btn-preset baseline-preset" data-minutes="360">Last 6 h</button>
+            <button class="btn-preset baseline-preset" data-minutes="1440">Last 24 h</button>
+            <button class="btn-preset baseline-preset" data-minutes="10080">Last 7 d</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button id="btn-train" class="btn-baseline">Train Model on Baseline</button>
+        </div>
+      </div>
+
+      <!-- Training status -->
+      <div id="train-status" class="status-bar hidden"></div>
+
+      <!-- Training result summary -->
+      <div id="train-result" class="train-result hidden">
+        <div class="train-stat">
+          <span class="train-stat-label">Rows Used</span>
+          <span class="train-stat-value" id="tr-rows">—</span>
+        </div>
+        <div class="train-stat">
+          <span class="train-stat-label">Epochs Run</span>
+          <span class="train-stat-value" id="tr-epochs">—</span>
+        </div>
+        <div class="train-stat">
+          <span class="train-stat-label">Anomaly Threshold (MSE)</span>
+          <span class="train-stat-value" id="tr-threshold">—</span>
+        </div>
+        <div class="train-stat">
+          <span class="train-stat-label">Baseline Window</span>
+          <span class="train-stat-value small" id="tr-window">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── STEP 2: Analysis Window ── -->
+    <section class="card analysis-card" id="section-analysis">
+      <div class="card-header-row">
+        <div>
+          <h2>Step 2 — Analysis Window (Suspected Degraded Period)</h2>
+          <p class="card-subtitle">Select the time window you want to inspect for anomalies. The model trained in Step 1 will score each data point against what it learned as "normal".</p>
+        </div>
+      </div>
+
+      <div class="range-controls">
+        <div class="field">
+          <label for="analysis-from">From</label>
+          <input type="datetime-local" id="analysis-from" />
+        </div>
+        <div class="field">
+          <label for="analysis-to">To</label>
+          <input type="datetime-local" id="analysis-to" />
+        </div>
+        <div class="field presets-field">
+          <label>Quick Select</label>
+          <div class="preset-buttons">
+            <button class="btn-preset analysis-preset" data-minutes="60">Last 1 h</button>
+            <button class="btn-preset analysis-preset" data-minutes="360">Last 6 h</button>
+            <button class="btn-preset analysis-preset" data-minutes="1440">Last 24 h</button>
+            <button class="btn-preset analysis-preset" data-minutes="10080">Last 7 d</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="threshold-override">
+            Threshold Override <span class="hint" id="model-threshold-hint"></span>
+          </label>
+          <input type="number" id="threshold-override" placeholder="Use model default"
+                 step="any" min="0" style="width:14rem;" />
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button id="btn-generate" class="btn-analysis">Analyze for Anomalies</button>
+        </div>
+      </div>
+
+      <!-- Analysis status -->
+      <div id="status-bar" class="status-bar hidden"></div>
+    </section>
+
+    <!-- ── STEP 3: Results ── -->
+
+    <!-- Summary Cards -->
+    <section id="summary-section" class="summary-section hidden">
+      <div class="summary-card">
+        <span class="summary-label">Data Points Scored</span>
+        <span class="summary-value" id="val-total">—</span>
+      </div>
+      <div class="summary-card anomaly-card">
+        <span class="summary-label">Anomalies Detected</span>
+        <span class="summary-value" id="val-anomalies">—</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Threshold (MSE)</span>
+        <span class="summary-value" id="val-threshold">—</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Analysis Window</span>
+        <span class="summary-value small" id="val-window">—</span>
+      </div>
+    </section>
+
+    <!-- Reconstruction Error Chart -->
+    <section id="recon-section" class="card chart-card hidden">
+      <h2>Reconstruction Error — Analysis Window</h2>
+      <p class="card-subtitle">Each point is a 30-step sequence starting at that timestamp. Points above the red dashed threshold are flagged as anomalies. The threshold was learned from the baseline window.</p>
+      <div class="chart-wrapper">
+        <img id="recon-img" src="" alt="Reconstruction error chart" />
+      </div>
+    </section>
+
+    <!-- Key Metrics Chart -->
+    <section id="metrics-section" class="card chart-card hidden">
+      <h2>Key Metrics — Analysis Window</h2>
+      <div class="metrics-selector">
+        <label>Metrics to plot:</label>
+        <div id="metric-checkboxes" class="checkbox-group"></div>
+        <button id="btn-regen-chart" class="btn-secondary">Update Chart</button>
+      </div>
+      <div class="chart-wrapper">
+        <img id="metrics-img" src="" alt="Metrics chart" />
+      </div>
+    </section>
+
+    <!-- Anomaly Table -->
+    <section id="anomaly-section" class="card hidden">
+      <h2>Detected Anomalies <span id="anomaly-badge" class="badge"></span></h2>
+      <p class="card-subtitle">Each row is a timestamp where the model's reconstruction error exceeded the baseline threshold. Click to expand the root-cause breakdown.</p>
+      <div class="table-wrapper">
+        <table id="anomaly-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Timestamp</th>
+              <th>Reconstruction Error</th>
+              <th>Top Contributing Metric</th>
+              <th>Impact Score</th>
+            </tr>
+          </thead>
+          <tbody id="anomaly-tbody"></tbody>
+        </table>
+        <div id="no-anomalies" class="empty-state hidden">No anomalies detected in this window — behaviour matches the baseline.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

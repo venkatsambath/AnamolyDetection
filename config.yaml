@@ -1,0 +1,23 @@
+namenode:
+  jmx_url: "http://localhost:9870/jmx"
+  poll_interval_seconds: 10
+
+scheduler:
+  process_interval_seconds: 60
+  inference_interval_minutes: 5
+  retrain_cron: "0 2 * * *"   # 2 AM daily
+
+model:
+  sequence_length: 30
+  latent_dim: 10
+  epochs: 50
+  batch_size: 32
+  validation_split: 0.2
+  anomaly_threshold_percentile: 95
+
+database:
+  url: "sqlite:///anomaly_detection.db"
+
+server:
+  host: "0.0.0.0"
+  port: 8000
