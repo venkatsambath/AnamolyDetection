@@ -5,13 +5,12 @@ Reads unprocessed raw_metrics rows from the DB, runs the exact bean-parsing
 logic from the original Stage 2 script, and writes completed AvgTime feature
 rows to processed_metrics.
 
-All variable initialisations, section-name checks, KeyError/ValueError guards,
-and the skip-row condition are preserved verbatim from the original script.
-Input changes from os.listdir(directory) → DB query.
-Output changes from csv.writer → DB insert.
+Supports multiple NameNode RPC ports (e.g. 9000 for older CDH, 8020 for CDH 7+)
+by dynamically detecting which RpcActivity/RpcDetailedActivity beans exist.
 """
 import json
 import logging
+import re
 from datetime import datetime
 
 from database.db import SessionLocal
@@ -35,12 +34,53 @@ REQUIRED_COLUMNS = [
     "GetDatanodeReportAvgTime", "GetDatanodeStorageReportAvgTime",
 ]
 
+# NameNode RPC bean name patterns — port varies by cluster (9000, 8020, etc.)
+_RPC_ACTIVITY_PREFIX = "Hadoop:service=NameNode,name=RpcActivityForPort"
+_RPC_DETAILED_PREFIX = "Hadoop:service=NameNode,name=RpcDetailedActivityForPort"
+_RPC_PORT_PATTERN = re.compile(
+    r"Hadoop:service=NameNode,name=Rpc(Activity|DetailedActivity)ForPort(\d+)"
+)
+
+
+def _detect_rpc_port(beans: list) -> int | None:
+    """
+    Find the client RPC port from beans.
+    Prefer ports that have both RpcActivity and RpcDetailedActivity
+    (client operations like Create, GetFileInfo live in RpcDetailedActivity).
+    """
+    activity_ports = set()
+    detailed_ports = set()
+    for section in beans:
+        name = section.get("name", "")
+        m = _RPC_PORT_PATTERN.match(name)
+        if m:
+            port = int(m.group(2))
+            if "ActivityForPort" in name and "Detailed" not in name:
+                activity_ports.add(port)
+            elif "RpcDetailedActivityForPort" in name:
+                detailed_ports.add(port)
+    # Prefer port that has both beans; use 8020 (CDH 7 client) before 9000 (older)
+    common = activity_ports & detailed_ports
+    for port in (8020, 9000, 8022):
+        if port in common:
+            return port
+    return next(iter(common), None)
+
 
 def _parse_beans(beans: list) -> dict | None:
     """
     Runs the Stage-2 bean-extraction logic on a single JMX snapshot.
     Returns a dict of metric values, or None if the row should be skipped.
+    Supports multiple NameNode RPC ports (9000, 8020, 8022, etc.).
     """
+    rpc_port = _detect_rpc_port(beans)
+    if rpc_port is None:
+        logger.debug("No matching RpcActivity/RpcDetailedActivity bean pair found.")
+        return None
+
+    rpc_activity_name = f"{_RPC_ACTIVITY_PREFIX}{rpc_port}"
+    rpc_detailed_name = f"{_RPC_DETAILED_PREFIX}{rpc_port}"
+
     # --- original Stage 2 variable initialisation (preserved verbatim) ---
     timestamp = ""
     ThreadsBlocked = ThreadsWaiting = ThreadsTimedWaiting = -1
@@ -54,7 +94,7 @@ def _parse_beans(beans: list) -> dict | None:
     GetSnapshotDiffReportAvgTime = GetSnapshotDiffReportListingAvgTime = -1
     GetDatanodeReportAvgTime = GetDatanodeStorageReportAvgTime = -1
 
-    # --- original Stage 2 section parsing loop (preserved verbatim) ---
+    # --- original Stage 2 section parsing loop (port-agnostic) ---
     for section in beans:
         try:
             if section["name"] == "Hadoop:service=NameNode,name=JvmMetrics":
@@ -75,12 +115,12 @@ def _parse_beans(beans: list) -> dict | None:
                 topusers = json.loads(section["TopUserOpCounts"])
                 timestamp = topusers["timestamp"][0:19]
 
-            if section["name"] == "Hadoop:service=NameNode,name=RpcActivityForPort9000":
+            if section["name"] == rpc_activity_name:
                 CallQueueLength = json.loads(str(section["CallQueueLength"]))
                 RpcProcessingTimeAvgTime = json.loads(str(section["RpcProcessingTimeAvgTime"]))
                 RpcQueueTimeAvgTime = json.loads(str(section["RpcQueueTimeAvgTime"]))
 
-            if section["name"] == "Hadoop:service=NameNode,name=RpcDetailedActivityForPort9000":
+            if section["name"] == rpc_detailed_name:
                 # Use .get(key, 0) so that operations with no calls in this window
                 # (metric absent from the bean) are treated as 0 ms rather than -1.
                 def _ms(key):
