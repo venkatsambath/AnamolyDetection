@@ -39,6 +39,10 @@ const metricsImg        = document.getElementById("metrics-img");
 const anomalyTbody      = document.getElementById("anomaly-tbody");
 const noAnomalies       = document.getElementById("no-anomalies");
 const anomalyBadge      = document.getElementById("anomaly-badge");
+const anomalyTable      = document.getElementById("anomaly-table");
+
+let currentAnomalies = [];
+let anomalySortState = { column: null, asc: true };
 const metricCheckboxes  = document.getElementById("metric-checkboxes");
 const btnRegenChart     = document.getElementById("btn-regen-chart");
 
@@ -64,6 +68,15 @@ const stepIndicators = [
   document.querySelectorAll(".analysis-preset").forEach(btn => {
     btn.addEventListener("click", () => applyPreset(btn, analysisFromInput, analysisToInput));
   });
+
+  if (anomalyTable) {
+    anomalyTable.addEventListener("click", (e) => {
+      const th = e.target.closest("th.sortable");
+      if (th && th.dataset.sort) {
+        applyAnomalySort(th.dataset.sort);
+      }
+    });
+  }
 })();
 
 // ===== Helpers =====
@@ -314,12 +327,66 @@ function renderReport(data, from_ts, to_ts) {
     showSection(metricsSection);
   }
 
-  renderAnomalyTable(data.anomalies || []);
+  currentAnomalies = data.anomalies || [];
+  anomalySortState = { column: null, asc: true };
+  renderAnomalyTable();
   showSection(anomalySection);
 }
 
 // ===== Anomaly Table =====
-function renderAnomalyTable(anomalies) {
+function getAnomalySortValue(a, column) {
+  switch (column) {
+    case "timestamp":
+      return a.timestamp || "";
+    case "reconstruction_error":
+      return a.reconstruction_error ?? 0;
+    case "impact_score": {
+      const top = ((a.explanation || {}).metrics || [])[0];
+      return top ? (top.impact_score ?? 0) : 0;
+    }
+    default:
+      return null;
+  }
+}
+
+function sortAnomalies(anomalies, column, asc) {
+  return [...anomalies].sort((a, b) => {
+    const va = getAnomalySortValue(a, column);
+    const vb = getAnomalySortValue(b, column);
+    let cmp = 0;
+    if (typeof va === "string" && typeof vb === "string") {
+      cmp = va.localeCompare(vb);
+    } else {
+      cmp = (va ?? 0) - (vb ?? 0);
+    }
+    return asc ? cmp : -cmp;
+  });
+}
+
+function applyAnomalySort(column) {
+  if (currentAnomalies.length === 0) return;
+  const sameColumn = anomalySortState.column === column;
+  anomalySortState.asc = sameColumn ? !anomalySortState.asc : true;
+  anomalySortState.column = column;
+  updateSortHeaderIndicators();
+  renderAnomalyTable();
+}
+
+function updateSortHeaderIndicators() {
+  if (!anomalyTable) return;
+  anomalyTable.querySelectorAll("th.sortable").forEach(th => {
+    th.classList.remove("sorted-asc", "sorted-desc");
+    if (th.dataset.sort === anomalySortState.column) {
+      th.classList.add(anomalySortState.asc ? "sorted-asc" : "sorted-desc");
+    }
+  });
+}
+
+function renderAnomalyTable() {
+  const anomalies = anomalySortState.column
+    ? sortAnomalies(currentAnomalies, anomalySortState.column, anomalySortState.asc)
+    : currentAnomalies;
+
   anomalyTbody.innerHTML = "";
   anomalyBadge.textContent = anomalies.length;
 
@@ -328,6 +395,8 @@ function renderAnomalyTable(anomalies) {
     return;
   }
   noAnomalies.classList.add("hidden");
+
+  updateSortHeaderIndicators();
 
   anomalies.forEach((a, idx) => {
     const metrics = (a.explanation || {}).metrics || [];
