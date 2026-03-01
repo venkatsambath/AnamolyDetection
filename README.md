@@ -4,7 +4,7 @@
 
 ## 1. Clone the Repository
 
-```bash
+```
 git clone https://github.com/venkatsambath/AnamolyDetection.git
 cd AnamolyDetection
 git checkout V1.0
