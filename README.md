@@ -14,7 +14,7 @@ git checkout V1.0
 
 ## 2. Install Python 3.11 (RHEL / CentOS )
 
-```bash
+```
 dnf install -y python3.11
 dnf install -y python3.11-pip
 ```
