@@ -17,6 +17,10 @@ model:
 
 database:
   url: "sqlite:///anomaly_detection.db"
+  # Retention: rows older than retention_days are deleted
+  retention_days: 10
+  # Interval at which the retention cleanup job runs (in hours)
+  cleanup_interval_hours: 24
 
 server:
   host: "0.0.0.0"

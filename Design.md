@@ -155,6 +155,8 @@ model:
 
 database:
   url: "sqlite:///anomaly_detection.db"  # SQLite file, created automatically
+  retention_days: 10                     # rows older than this are deleted
+  cleanup_interval_hours: 24             # how often the retention cleanup runs
 
 server:
   host: "0.0.0.0"
