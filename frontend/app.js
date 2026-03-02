@@ -451,15 +451,27 @@ function buildExplanationHTML(explanation) {
     return `<p class="metric-desc">${explanation.summary || "No explanation available."}</p>`;
   }
   let html = `<h3>${explanation.summary || "Anomaly explanation"}</h3>`;
+  if (explanation.window_start && explanation.window_end) {
+    const fmt = (s) => {
+      try { return new Date(s).toLocaleString(undefined, { dateStyle: "short", timeStyle: "medium" }); }
+      catch { return s; }
+    };
+    html += `<p class="window-info"><strong>Window:</strong> ${fmt(explanation.window_start)} → ${fmt(explanation.window_end)}</p>`;
+  }
   metrics.forEach(m => {
     const causes = (m.possible_causes || []).map(c => `<li>${c}</li>`).join("");
     const val = typeof m.actual_value === "number" ? m.actual_value.toFixed(2) : m.actual_value;
+    const peakVal = typeof m.peak_in_window === "number" ? m.peak_in_window.toFixed(2) : null;
+    const metaItems = [
+      `<span>Actual (at time): <strong>${val}</strong></span>`,
+      peakVal !== null ? `<span>Peak in window: <strong>${peakVal}</strong></span>` : "",
+      `<span>Impact: <span class="impact-score">${m.impact_score.toFixed(4)}</span></span>`,
+    ].filter(Boolean);
     html += `
       <div class="metric-entry">
         <div class="metric-name">${m.metric}</div>
         <div class="metric-meta">
-          <span>Actual: <strong>${val}</strong></span>
-          <span>Impact: <span class="impact-score">${m.impact_score.toFixed(4)}</span></span>
+          ${metaItems.join('<span class="meta-sep"> • </span>')}
         </div>
         ${m.description ? `<div class="metric-desc">${m.description}</div>` : ""}
         ${m.high_impact ? `<div class="metric-impact">⚠ ${m.high_impact}</div>` : ""}

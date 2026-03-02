@@ -66,11 +66,13 @@ def artifacts_ready() -> bool:
 
 # --- preserved verbatim from Kaggle notebook ---
 def explain_anomaly(sequence_scaled, reconstructed_sequence_scaled,
-                    metric_columns, metric_reasons, original_df_metrics_at_anomaly):
+                    metric_columns, metric_reasons, original_df_metrics_at_anomaly,
+                    peak_in_window=None):
     """
     Compares the original (scaled) and reconstructed (scaled) sequence to
     identify contributing metrics and generates an explanation dict.
-    Preserved verbatim from Kaggle notebook (output type changed to dict for JSON storage).
+    original_df_metrics_at_anomaly: values at the sequence start (timestamp).
+    peak_in_window: optional dict of max values across the full sequence window.
     """
     diff = np.abs(sequence_scaled - reconstructed_sequence_scaled)
     feature_contributions = np.mean(diff, axis=0)
@@ -94,20 +96,36 @@ def explain_anomaly(sequence_scaled, reconstructed_sequence_scaled,
     result_metrics = []
     actual_values = original_df_metrics_at_anomaly
 
+    # Skip metrics where both actual and peak are zero — high impact is just scaled-space artifact.
+    ZERO_EPS = 1e-6
+
     for metric_name, score in top_contributing_metrics:
         reason_info = metric_reasons.get(metric_name, {})
         actual_value = actual_values.get(metric_name, "N/A")
         if isinstance(actual_value, (int, float, np.floating)):
             actual_value = float(actual_value)
+        peak_value = None
+        if peak_in_window and metric_name in peak_in_window:
+            pv = peak_in_window[metric_name]
+            if isinstance(pv, (int, float, np.floating)):
+                peak_value = float(pv)
 
-        result_metrics.append({
+        actual_near_zero = isinstance(actual_value, float) and abs(actual_value) < ZERO_EPS
+        peak_near_zero = peak_value is not None and abs(peak_value) < ZERO_EPS
+        if actual_near_zero and peak_near_zero:
+            continue  # Don't list metrics with no real activity (both 0)
+
+        entry = {
             "metric": metric_name,
             "actual_value": actual_value,
             "impact_score": round(score, 6),
             "description": reason_info.get("description", ""),
             "high_impact": reason_info.get("high_impact", ""),
             "possible_causes": reason_info.get("possible_causes", []),
-        })
+        }
+        if peak_value is not None:
+            entry["peak_in_window"] = peak_value
+        result_metrics.append(entry)
 
     return {
         "summary": "Bad performance detected! Here's why:",
@@ -183,11 +201,23 @@ def score_window(from_ts, to_ts, threshold_override: float | None = None) -> dic
         is_anomaly = bool(err > effective_threshold)
         explanation = None
         if is_anomaly:
-            # Use the peak value across the full sequence window so "Actual" reflects
-            # the worst point the metric reached, not just the value at the window start.
+            # Value at sequence start (matches displayed timestamp).
+            actual_vals = {col: float(df_metrics.iloc[i][col]) for col in metric_cols}
+            # Peak across the full 30-step window (explains high impact when actual at t=0 is low).
             window_slice = df_metrics.iloc[i:i + app_config.SEQUENCE_LENGTH]
-            actual_vals = {col: float(window_slice[col].max()) for col in metric_cols}
-            explanation = explain_anomaly(X_full[i], X_pred[i], metric_cols, METRIC_REASONS_AVGTIME, actual_vals)
+            peak_vals = {col: float(window_slice[col].max()) for col in metric_cols}
+            explanation = explain_anomaly(
+                X_full[i], X_pred[i], metric_cols, METRIC_REASONS_AVGTIME,
+                actual_vals, peak_in_window=peak_vals,
+            )
+            # Add window timestamp range for clarity
+            window_end_ts = df_metrics.index[i + app_config.SEQUENCE_LENGTH - 1]
+            explanation["window_start"] = ts.isoformat()
+            explanation["window_end"] = (
+                window_end_ts.isoformat()
+                if hasattr(window_end_ts, "isoformat")
+                else str(window_end_ts)
+            )
         anomaly_scores.append({
             "timestamp": ts,
             "Reconstruction_Error": float(err),
@@ -273,13 +303,23 @@ def score_pending() -> int:
             is_anomaly = bool(err > _threshold)
             explanation = None
             if is_anomaly:
-                actual_vals = {col: df_metrics.loc[ts, col] for col in metric_cols if ts in df_metrics.index}
+                actual_vals = {col: float(df_metrics.iloc[i][col]) for col in metric_cols}
+                window_slice = df_metrics.iloc[i:i + app_config.SEQUENCE_LENGTH]
+                peak_vals = {col: float(window_slice[col].max()) for col in metric_cols}
                 explanation = explain_anomaly(
                     X_full[i],
                     X_pred[i],
                     metric_cols,
                     METRIC_REASONS_AVGTIME,
                     actual_vals,
+                    peak_in_window=peak_vals,
+                )
+                window_end_ts = df_metrics.index[i + app_config.SEQUENCE_LENGTH - 1]
+                explanation["window_start"] = ts.isoformat()
+                explanation["window_end"] = (
+                    window_end_ts.isoformat()
+                    if hasattr(window_end_ts, "isoformat")
+                    else str(window_end_ts)
                 )
 
             event = AnomalyEvent(
