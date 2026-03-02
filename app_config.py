@@ -22,6 +22,8 @@ VALIDATION_SPLIT: float = _raw["model"]["validation_split"]
 ANOMALY_THRESHOLD_PERCENTILE: int = _raw["model"]["anomaly_threshold_percentile"]
 
 DATABASE_URL: str = _raw["database"]["url"]
+DATABASE_RETENTION_DAYS: int = _raw["database"].get("retention_days", 10)
+DATABASE_CLEANUP_INTERVAL_HOURS: int = _raw["database"].get("cleanup_interval_hours", 24)
 
 SERVER_HOST: str = _raw["server"]["host"]
 SERVER_PORT: int = _raw["server"]["port"]

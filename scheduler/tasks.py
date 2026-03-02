@@ -6,6 +6,7 @@ Jobs wired here:
   2. process_metrics  — every PROCESS_INTERVAL_SECONDS seconds
   3. run_inference    — every INFERENCE_INTERVAL_MINUTES minutes
   4. retrain_model    — nightly via RETRAIN_CRON (default 2 AM)
+  5. retention_cleanup — every DATABASE_CLEANUP_INTERVAL_HOURS hours
 """
 import logging
 
@@ -63,6 +64,17 @@ def _job_retrain():
         logger.error("[retrain_model] Unhandled error: %s", exc)
 
 
+def _job_retention_cleanup():
+    from database.cleanup import run_retention_cleanup
+    try:
+        deleted = run_retention_cleanup()
+        total = sum(deleted.values())
+        if total:
+            logger.info("[retention_cleanup] Deleted %d rows: %s", total, deleted)
+    except Exception as exc:
+        logger.error("[retention_cleanup] Unhandled error: %s", exc)
+
+
 def start_scheduler() -> BackgroundScheduler:
     """Create, configure, and start the background scheduler. Returns the instance."""
     global _scheduler
@@ -116,6 +128,17 @@ def start_scheduler() -> BackgroundScheduler:
         ),
         id="retrain_model",
         name="Nightly Model Retraining",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # 5. Database retention cleanup
+    scheduler.add_job(
+        _job_retention_cleanup,
+        trigger=IntervalTrigger(hours=app_config.DATABASE_CLEANUP_INTERVAL_HOURS),
+        id="retention_cleanup",
+        name="Database Retention Cleanup",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
