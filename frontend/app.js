@@ -19,7 +19,7 @@
 // ===== Constants =====
 const ALL_METRICS = [
   "GetGroupsAvgTime", "ThreadsBlocked", "ThreadsWaiting", "ThreadsTimedWaiting",
-  "GcTimeMillisParNew", "GcTimeMillisConcurrentMarkSweep", "CallQueueLength",
+  "GcTimeMillisConcurrentMarkSweep", "CallQueueLength",
   "RpcProcessingTimeAvgTime", "RpcQueueTimeAvgTime",
   "CreateAvgTime", "MkdirsAvgTime", "DeleteAvgTime", "RenameAvgTime",
   "Rename2AvgTime", "CompleteAvgTime", "GetFileInfoAvgTime", "GetBlockLocationsAvgTime",

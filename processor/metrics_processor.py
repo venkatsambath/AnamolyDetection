@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Columns that must ALL be non-(-1) for a row to be accepted — same guard as original
 REQUIRED_COLUMNS = [
     "ThreadsBlocked", "ThreadsWaiting", "ThreadsTimedWaiting",
-    "GcTimeMillisParNew", "GcTimeMillisConcurrentMarkSweep",
+    "GcTimeMillisConcurrentMarkSweep",
     "CallQueueLength", "RpcProcessingTimeAvgTime", "RpcQueueTimeAvgTime",
     "GetGroupsAvgTime",
     "CreateAvgTime", "MkdirsAvgTime", "DeleteAvgTime", "RenameAvgTime",

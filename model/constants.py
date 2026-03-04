@@ -18,7 +18,7 @@ GAUGE_METRICS, METRIC_COLUMNS_AVGTIME, METRIC_REASONS_AVGTIME.
 
 GAUGE_METRICS = [
     'GetGroupsAvgTime', 'ThreadsBlocked', 'ThreadsWaiting', 'ThreadsTimedWaiting',
-    'GcTimeMillisParNew', 'GcTimeMillisConcurrentMarkSweep', 'CallQueueLength',
+    'GcTimeMillisConcurrentMarkSweep', 'CallQueueLength',
     'RpcProcessingTimeAvgTime', 'RpcQueueTimeAvgTime', 'CreateAvgTime',
     'MkdirsAvgTime', 'DeleteAvgTime', 'RenameAvgTime', 'Rename2AvgTime',
     'CompleteAvgTime', 'GetFileInfoAvgTime', 'GetBlockLocationsAvgTime',
@@ -31,7 +31,7 @@ GAUGE_METRICS = [
 
 METRIC_COLUMNS_AVGTIME = [
     'GetGroupsAvgTime', 'ThreadsBlocked', 'ThreadsWaiting', 'ThreadsTimedWaiting',
-    'GcTimeMillisParNew', 'GcTimeMillisConcurrentMarkSweep', 'CallQueueLength',
+    'GcTimeMillisConcurrentMarkSweep', 'CallQueueLength',
     'RpcProcessingTimeAvgTime', 'RpcQueueTimeAvgTime',
     'CreateAvgTime', 'MkdirsAvgTime', 'DeleteAvgTime', 'RenameAvgTime',
     'Rename2AvgTime', 'CompleteAvgTime', 'GetFileInfoAvgTime', 'GetBlockLocationsAvgTime',
@@ -49,15 +49,6 @@ METRIC_REASONS_AVGTIME = {
             'Slowness in external authentication systems (LDAP, Kerberos)',
             'NameNode under heavy load, delaying group lookups',
             'Network latency to authentication servers',
-        ],
-    },
-    'GcTimeMillisParNew': {
-        'description': 'Time spent in ParNew garbage collection (minor GC) per minute',
-        'high_impact': 'Frequent or long minor GC pauses occurring in the last minute, indicating high object creation rate.',
-        'possible_causes': [
-            'High rate of temporary object allocation by applications',
-            'Inefficient application code generating garbage rapidly',
-            'Insufficient young generation heap size allocated to NameNode JVM',
         ],
     },
     'GcTimeMillisConcurrentMarkSweep': {
