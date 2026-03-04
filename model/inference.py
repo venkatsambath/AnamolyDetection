@@ -67,14 +67,13 @@ def artifacts_ready() -> bool:
 # --- preserved verbatim from Kaggle notebook ---
 def explain_anomaly(sequence_scaled, reconstructed_sequence_scaled,
                     metric_columns, metric_reasons, original_df_metrics_at_anomaly,
-                    peak_in_window=None, range_in_window=None, peak_at_window=None):
+                    peak_in_window=None, range_in_window=None):
     """
     Compares the original (scaled) and reconstructed (scaled) sequence to
     identify contributing metrics and generates an explanation dict.
     original_df_metrics_at_anomaly: values at the sequence start (timestamp).
     peak_in_window: optional dict of max values across the full sequence window.
     range_in_window: optional dict of (max - min) per metric; used to filter flat metrics.
-    peak_at_window: optional dict of timestamps when each metric hit its peak.
     """
     diff = np.abs(sequence_scaled - reconstructed_sequence_scaled)
     feature_contributions = np.mean(diff, axis=0)
@@ -137,11 +136,6 @@ def explain_anomaly(sequence_scaled, reconstructed_sequence_scaled,
         }
         if peak_value is not None:
             entry["peak_in_window"] = peak_value
-        peak_ts = peak_at_window.get(metric_name) if peak_at_window else None
-        if peak_ts is not None and hasattr(peak_ts, "isoformat"):
-            entry["peak_at"] = peak_ts.isoformat()
-        elif peak_ts is not None:
-            entry["peak_at"] = str(peak_ts)
         result_metrics.append(entry)
 
     return {
@@ -220,15 +214,13 @@ def score_window(from_ts, to_ts, threshold_override: float | None = None) -> dic
         if is_anomaly:
             # Value at sequence start (matches displayed timestamp).
             actual_vals = {col: float(df_metrics.iloc[i][col]) for col in metric_cols}
-            # Peak, range, and peak-at timestamp across the full 30-step window.
+            # Peak and range across the full 30-step window.
             window_slice = df_metrics.iloc[i:i + app_config.SEQUENCE_LENGTH]
             peak_vals = {col: float(window_slice[col].max()) for col in metric_cols}
             range_vals = {col: float(window_slice[col].max() - window_slice[col].min()) for col in metric_cols}
-            peak_at_vals = {col: window_slice[col].idxmax() for col in metric_cols}
             explanation = explain_anomaly(
                 X_full[i], X_pred[i], metric_cols, METRIC_REASONS_AVGTIME,
                 actual_vals, peak_in_window=peak_vals, range_in_window=range_vals,
-                peak_at_window=peak_at_vals,
             )
             # Add window timestamp range for clarity
             window_end_ts = df_metrics.index[i + app_config.SEQUENCE_LENGTH - 1]
@@ -327,7 +319,6 @@ def score_pending() -> int:
                 window_slice = df_metrics.iloc[i:i + app_config.SEQUENCE_LENGTH]
                 peak_vals = {col: float(window_slice[col].max()) for col in metric_cols}
                 range_vals = {col: float(window_slice[col].max() - window_slice[col].min()) for col in metric_cols}
-                peak_at_vals = {col: window_slice[col].idxmax() for col in metric_cols}
                 explanation = explain_anomaly(
                     X_full[i],
                     X_pred[i],
@@ -336,7 +327,6 @@ def score_pending() -> int:
                     actual_vals,
                     peak_in_window=peak_vals,
                     range_in_window=range_vals,
-                    peak_at_window=peak_at_vals,
                 )
                 window_end_ts = df_metrics.index[i + app_config.SEQUENCE_LENGTH - 1]
                 explanation["window_start"] = ts.isoformat()
