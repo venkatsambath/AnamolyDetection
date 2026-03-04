@@ -99,8 +99,10 @@ def explain_anomaly(sequence_scaled, reconstructed_sequence_scaled,
 
     # Skip metrics where both actual and peak are zero — high impact is just scaled-space artifact.
     ZERO_EPS = 1e-6
-    # Skip metrics with negligible range (e.g. ThreadsWaiting 31-32) — high impact is scaler artifact.
-    MIN_RANGE = 2.0
+    # Skip metrics with negligible range — high impact is MinMaxScaler artifact.
+    THREAD_METRICS = {"ThreadsWaiting", "ThreadsBlocked", "ThreadsTimedWaiting"}
+    min_range = app_config.EXPLANATION_MIN_RANGE
+    min_range_thread = app_config.EXPLANATION_MIN_RANGE_THREAD
 
     for metric_name, score in top_contributing_metrics:
         reason_info = metric_reasons.get(metric_name, {})
@@ -119,8 +121,10 @@ def explain_anomaly(sequence_scaled, reconstructed_sequence_scaled,
             continue  # Don't list metrics with no real activity (both 0)
 
         range_val = range_in_window.get(metric_name) if range_in_window else None
-        if range_val is not None and isinstance(range_val, (int, float)) and float(range_val) < MIN_RANGE:
-            continue  # Don't list metrics that barely changed (e.g. ThreadsWaiting 31→32)
+        if range_val is not None and isinstance(range_val, (int, float)):
+            threshold = min_range_thread if metric_name in THREAD_METRICS else min_range
+            if float(range_val) < threshold:
+                continue  # Don't list metrics that barely changed
 
         entry = {
             "metric": metric_name,

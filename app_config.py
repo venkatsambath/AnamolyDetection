@@ -33,6 +33,8 @@ EPOCHS: int = _raw["model"]["epochs"]
 BATCH_SIZE: int = _raw["model"]["batch_size"]
 VALIDATION_SPLIT: float = _raw["model"]["validation_split"]
 ANOMALY_THRESHOLD_PERCENTILE: int = _raw["model"]["anomaly_threshold_percentile"]
+EXPLANATION_MIN_RANGE: float = _raw["model"].get("explanation_min_range", 2.0)
+EXPLANATION_MIN_RANGE_THREAD: float = _raw["model"].get("explanation_min_range_thread", 4.0)
 
 DATABASE_URL: str = _raw["database"]["url"]
 DATABASE_RETENTION_DAYS: int = _raw["database"].get("retention_days", 10)

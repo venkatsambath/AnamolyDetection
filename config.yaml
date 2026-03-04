@@ -14,6 +14,9 @@ model:
   batch_size: 32
   validation_split: 0.2
   anomaly_threshold_percentile: 95
+  # Min range (max-min) in window to list a metric in anomaly explanation. Metrics below this are filtered.
+  explanation_min_range: 2.0
+  explanation_min_range_thread: 4.0   # Stricter for ThreadsWaiting, ThreadsBlocked, ThreadsTimedWaiting
 
 database:
   url: "sqlite:///anomaly_detection.db"
